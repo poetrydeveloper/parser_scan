@@ -1,0 +1,45 @@
+{% extends "admin/change_form.html" %}
+
+{% block after_field_sets %}
+<div style="margin: 30px 0; background: #f8f9fa; padding: 20px; border-radius: 5px;">
+    <h2>Товары в накладной ({{ original.items.count }})</h2>
+
+    {% if original.items.exists %}
+    <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+            <thead>
+                <tr style="background: #e9ecef;">
+                    <th style="padding: 10px; border: 1px solid #dee2e6;">Код</th>
+                    <th style="padding: 10px; border: 1px solid #dee2e6;">Артикул</th>
+                    <th style="padding: 10px; border: 1px solid #dee2e6;">Название</th>
+                    <th style="padding: 10px; border: 1px solid #dee2e6;">Ед.изм</th>
+                    <th style="padding: 10px; border: 1px solid #dee2e6;">Кол-во</th>
+                    <th style="padding: 10px; border: 1px solid #dee2e6;">Цена</th>
+                    <th style="padding: 10px; border: 1px solid #dee2e6;">Сумма</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in original.items.all %}
+                <tr>
+                    <td style="padding: 10px; border: 1px solid #dee2e6;">{{ item.code }}</td>
+                    <td style="padding: 10px; border: 1px solid #dee2e6;">{{ item.article }}</td>
+                    <td style="padding: 10px; border: 1px solid #dee2e6;">{{ item.clean_name }}</td>
+                    <td style="padding: 10px; border: 1px solid #dee2e6;">{{ item.unit }}</td>
+                    <td style="padding: 10px; border: 1px solid #dee2e6;">{{ item.quantity }}</td>
+                    <td style="padding: 10px; border: 1px solid #dee2e6;">{{ item.price }} ₽</td>
+                    <td style="padding: 10px; border: 1px solid #dee2e6; font-weight: bold;">
+                        {{ item.total_price }} ₽
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div style="padding: 20px; text-align: center; color: #6c757d;">
+        В этой накладной нет товаров
+    </div>
+    {% endif %}
+</div>
+{{ block.super }}
+{% endblock %}
