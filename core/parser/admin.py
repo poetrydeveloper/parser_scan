@@ -129,9 +129,67 @@ class ProductAdmin(admin.ModelAdmin):
         return "-"
     ttn_link.short_description = 'ТТН'
 
+
 @admin.register(Price)
 class PriceAdmin(admin.ModelAdmin):
-    list_display = ('code', 'name', 'price1', 'stock', 'price_date')
-    search_fields = ('code', 'name', 'article')
-    list_filter = ('price_date',)
+    list_display = (
+        'code',
+        'type',
+        'article',
+        'short_name',
+        'price1',
+        'price2',
+        'formatted_stock',
+        'quantity',
+        'price_clear',
+        'created_at'
+    )
+    list_display_links = ('code', 'short_name')
+    search_fields = ('code', 'article', 'name', 'type')
+    list_filter = ('type', 'created_at')
+    list_per_page = 50
+    ordering = ('code',)
     readonly_fields = ('created_at', 'updated_at')
+
+    fieldsets = (
+        ('Основная информация', {
+            'fields': ('code', 'type', 'article', 'name')
+        }),
+        ('Цены и остатки', {
+            'fields': ('price1', 'price2', 'price_clear', 'stock', 'quantity')
+        }),
+        ('Системные данные', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        })
+    )
+
+    def short_name(self, obj):
+        return obj.name[:60] + '...' if len(obj.name) > 60 else obj.name
+
+    short_name.short_description = 'Наименование'
+
+    def formatted_stock(self, obj):
+        return obj.stock if obj.stock else "-"
+
+    formatted_stock.short_description = 'Остаток'
+
+    def price1(self, obj):
+        return f"{obj.price1:.2f} ₽"
+
+    price1.short_description = 'Цена 1'
+
+    def price2(self, obj):
+        return f"{obj.price2:.2f} ₽" if obj.price2 else "-"
+
+    price2.short_description = 'Цена 2'
+
+    def price_clear(self, obj):
+        return f"{obj.price_clear:.2f} ₽"
+
+    price_clear.short_description = 'Цена за ед.'
+
+    def quantity(self, obj):
+        return obj.quantity if obj.quantity else "-"
+
+    quantity.short_description = 'Кол-во'

@@ -114,9 +114,9 @@ class Price(models.Model):
     name = models.TextField("Наименование")
     price1 = models.DecimalField("Цена 1", max_digits=10, decimal_places=2)
     price2 = models.DecimalField("Цена 2", max_digits=10, decimal_places=2, null=True, blank=True)
-    stock = models.IntegerField("Остаток", default=0)
+    stock = models.TextField("Остаток")
     quantity = models.IntegerField("Количество", default=0)
-    price_date = models.DateField("Дата прайса")
+    price_clear = models.DecimalField("Цена за ед товара.", max_digits=10, decimal_places=2)
     created_at = models.DateTimeField("Создано", auto_now_add=True)
     updated_at = models.DateTimeField("Обновлено", auto_now=True)
 
