@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
-from .models import Invoice, ExcelFile, Product, TTN, Price
+from .models import Invoice, ExcelFile, Product, TTN, Price, FinalSample
 
 
 class ProductInline(admin.TabularInline):
@@ -193,3 +193,15 @@ class PriceAdmin(admin.ModelAdmin):
         return obj.quantity if obj.quantity else "-"
 
     quantity.short_description = 'Кол-во'
+
+
+@admin.register(FinalSample)
+class FinalSampleAdmin(admin.ModelAdmin):
+    list_display = ('ttn_number', 'price_code', 'price_article', 'short_product_name', 'match_status')
+    list_filter = ('ttn_number', 'match_status')
+    search_fields = ('ttn_number', 'price_code', 'price_article', 'product_name')
+
+    def short_product_name(self, obj):
+        return obj.product_name[:50] + '...' if len(obj.product_name) > 50 else obj.product_name
+
+    short_product_name.short_description = 'Наименование'

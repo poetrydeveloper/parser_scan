@@ -127,3 +127,37 @@ class Price(models.Model):
 
     def __str__(self):
         return f"{self.code} - {self.name[:50]}"
+
+
+from django.db import models
+
+
+class FinalSample(models.Model):
+    ttn_number = models.CharField("Номер ТТН", max_length=50)
+    price_code = models.CharField("Код из прайса", max_length=50, blank=True, null=True)
+    price_type = models.CharField("Тип из прайса", max_length=100, blank=True, null=True)
+    price_article = models.CharField("Артикул из прайса", max_length=100, blank=True, null=True)
+    price_name = models.TextField("Наименование из прайса", blank=True, null=True)
+    price1 = models.DecimalField("Цена 1 из прайса", max_digits=10, decimal_places=2, blank=True, null=True)
+    price2 = models.DecimalField("Цена 2 из прайса", max_digits=10, decimal_places=2, blank=True, null=True)
+    price_clear = models.DecimalField("Цена за ед. из прайса", max_digits=10, decimal_places=2, blank=True, null=True)
+
+    product_name = models.TextField("Наименование из накладной")
+    product_quantity = models.FloatField("Количество из накладной")
+    product_price = models.FloatField("Цена из накладной")
+
+    match_status = models.CharField("Статус соответствия", max_length=20,
+                                    choices=[('full', 'Полное'), ('partial', 'Частичное'), ('none', 'Нет')])
+    created_at = models.DateTimeField("Создано", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Финальная выборка"
+        verbose_name_plural = "Финальные выборки"
+        indexes = [
+            models.Index(fields=['ttn_number']),
+            models.Index(fields=['price_code']),
+            models.Index(fields=['price_article']),
+        ]
+
+    def __str__(self):
+        return f"{self.ttn_number} - {self.product_name[:50]}"
