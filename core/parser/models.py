@@ -106,3 +106,24 @@ class Product(models.Model):
 
     def __str__(self):
         return f"{self.name[:50]} ({self.quantity} шт. x {self.price} руб.)"
+
+class Price(models.Model):
+    code = models.CharField("Код товара", max_length=50, unique=True)
+    type = models.CharField("Тип", max_length=100, blank=True)
+    article = models.CharField("Артикул", max_length=100, blank=True)
+    name = models.TextField("Наименование")
+    price1 = models.DecimalField("Цена 1", max_digits=10, decimal_places=2)
+    price2 = models.DecimalField("Цена 2", max_digits=10, decimal_places=2, null=True, blank=True)
+    stock = models.IntegerField("Остаток", default=0)
+    quantity = models.IntegerField("Количество", default=0)
+    price_date = models.DateField("Дата прайса")
+    created_at = models.DateTimeField("Создано", auto_now_add=True)
+    updated_at = models.DateTimeField("Обновлено", auto_now=True)
+
+    class Meta:
+        verbose_name = "Прайс"
+        verbose_name_plural = "Прайсы"
+        ordering = ['code']
+
+    def __str__(self):
+        return f"{self.code} - {self.name[:50]}"

@@ -1,7 +1,8 @@
 from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
-from .models import Invoice, ExcelFile, Product, TTN
+from .models import Invoice, ExcelFile, Product, TTN, Price
+
 
 class ProductInline(admin.TabularInline):
     model = Product
@@ -127,3 +128,10 @@ class ProductAdmin(admin.ModelAdmin):
             return format_html('<a href="{}">{}</a>', url, obj.ttn)
         return "-"
     ttn_link.short_description = 'ТТН'
+
+@admin.register(Price)
+class PriceAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'price1', 'stock', 'price_date')
+    search_fields = ('code', 'name', 'article')
+    list_filter = ('price_date',)
+    readonly_fields = ('created_at', 'updated_at')
