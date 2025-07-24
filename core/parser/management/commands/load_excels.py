@@ -1,10 +1,11 @@
 import os
 import re
+import math  # 👈 Новый импорт
 from datetime import datetime
 from django.core.management.base import BaseCommand
 from openpyxl import load_workbook
 from django.core.files import File
-from django.db import transaction  # 👈 Импортируем транзакции
+from django.db import transaction
 from termcolor import cprint
 
 from parser.models import ExcelFile, Product, Invoice
@@ -15,7 +16,7 @@ FILENAME_PATTERN = re.compile(
 )
 
 
-# --- Твои вспомогательные функции остаются без изменений ---
+# --- Старые функции (без изменений) ---
 def validate_header_row(row):
     """Проверяет, является ли строка заголовком с номерами колонок"""
     expected_headers = ['1', '2', '3', '4']
@@ -32,7 +33,6 @@ def strict_float_conversion(value, row_index, field_name):
         raise ValueError(f"Пустое значение в поле {field_name} (строка {row_index})")
 
     try:
-        # Эта логика уже правильная: заменяет запятые на точки
         cleaned_value = original_value.replace(',', '.').replace(' ', '')
         return float(cleaned_value)
     except ValueError:
@@ -42,12 +42,28 @@ def strict_float_conversion(value, row_index, field_name):
         )
 
 
-# --- Основной класс команды с улучшениями ---
+# --- Новая функция проверки цены/стоимости ---
+def validate_price_quantity_total(row, row_index):
+    """Проверяет соответствие: цена = стоимость / количество"""
+    try:
+        quantity = strict_float_conversion(row[2], row_index, "Количество")
+        price = strict_float_conversion(row[3], row_index, "Цена")
+        total = strict_float_conversion(row[4], row_index, "Стоимость")
+
+        calculated_price = total / quantity if quantity != 0 else 0
+        if not math.isclose(price, calculated_price, rel_tol=1e-4):
+            raise ValueError(
+                f"Несоответствие цены и стоимости (строка {row_index}): "
+                f"цена={price}, но {total}/{quantity}≈{calculated_price:.2f}"
+            )
+    except (ValueError, ZeroDivisionError) as e:
+        raise ValueError(f"Ошибка проверки цены/стоимости: {e}")
+
+
 class Command(BaseCommand):
     help = "Загружает и парсит Excel-файлы с использованием транзакций и bulk_create"
 
     def handle(self, *args, **kwargs):
-        # ... (создание папки и проверка наличия файлов остается тем же)
         if not os.path.exists(INPUT_DIR):
             os.makedirs(INPUT_DIR, exist_ok=True)
             cprint(f"Создана папка {INPUT_DIR}", 'yellow')
@@ -61,10 +77,8 @@ class Command(BaseCommand):
             filepath = os.path.join(INPUT_DIR, filename)
             cprint(f"\nОбработка файла: {filename}", 'cyan', attrs=['bold'])
 
-            # 👇 Оборачиваем всю логику обработки одного файла в атомарную транзакцию
             try:
                 with transaction.atomic():
-                    # Проверка имени файла
                     match = FILENAME_PATTERN.match(filename)
                     if not match:
                         raise ValueError("Имя файла не соответствует шаблону!")
@@ -76,13 +90,11 @@ class Command(BaseCommand):
                     except ValueError:
                         raise ValueError(f"Неверный формат даты: {date_str}")
 
-                    # Сначала создаем Invoice
                     invoice, _ = Invoice.objects.get_or_create(
                         number=number,
                         defaults={'date': date}
                     )
 
-                    # Создаем ExcelFile и связываем его
                     excel_file = ExcelFile(invoice=invoice, processed=False)
                     with open(filepath, 'rb') as f:
                         excel_file.file.save(filename, File(f), save=True)
@@ -90,8 +102,8 @@ class Command(BaseCommand):
                     wb = load_workbook(excel_file.file.path, data_only=True)
                     ws = wb.active
 
-                    # 👇 Список для временного хранения объектов Product
                     products_to_create = []
+                    validation_errors = []
 
                     for row_index, row in enumerate(ws.iter_rows(min_row=1, values_only=True), start=1):
                         if not any(row[:4]):
@@ -101,38 +113,52 @@ class Command(BaseCommand):
                             cprint(f" ⚠️ Пропущена строка с номерами колонок (строка {row_index})", 'yellow')
                             continue
 
-                        name = str(row[0]).strip() if row[0] else None
-                        if not name:
-                            raise ValueError(f"Пустое наименование товара (строка {row_index})")
+                        try:
+                            name = str(row[0]).strip() if row[0] else None
+                            if not name:
+                                raise ValueError(f"Пустое наименование товара (строка {row_index})")
 
-                        # Ваша функция отлично справляется с задачей
-                        quantity = strict_float_conversion(row[2], row_index, "Количество")
-                        price = strict_float_conversion(row[3], row_index, "Цена")
+                            quantity = strict_float_conversion(row[2], row_index, "Количество")
+                            price = strict_float_conversion(row[3], row_index, "Цена")
 
-                        # 👇 Создаем объект в памяти, но НЕ сохраняем в БД
-                        products_to_create.append(
-                            Product(
-                                invoice=invoice,
-                                excel_file=excel_file,
-                                name=name,
-                                quantity=quantity,
-                                price=price
+                            # --- НОВАЯ ПРОВЕРКА (добавлена без изменения старого кода) ---
+                            if len(row) > 4 and row[4]:  # Проверяем, есть ли столбец "Стоимость"
+                                validate_price_quantity_total(row, row_index)
+                            # --- Конец новой проверки ---
+
+                            products_to_create.append(
+                                Product(
+                                    invoice=invoice,
+                                    excel_file=excel_file,
+                                    name=name,
+                                    quantity=quantity,
+                                    price=price
+                                )
                             )
+                            cprint(f" ✅ Строка {row_index}: {name[:50]}...", 'green')
+
+                        except Exception as e:
+                            cprint(f"❌ ОШИБКА ВАЛИДАЦИИ (строка {row_index}): {e}", 'red')
+                            cprint(f"    Содержимое строки: {row[:5]}", 'yellow')
+                            validation_errors.append(f"Строка {row_index}: {e}")
+                            continue
+
+                    if validation_errors:
+                        raise ValueError(
+                            f"Найдены ошибки в {len(validation_errors)} строках:\n" +
+                            "\n".join(validation_errors[:5]) +
+                            ("\n..." if len(validation_errors) > 5 else "")
                         )
 
                     if not products_to_create:
                         raise ValueError("В файле не найдено данных для импорта.")
 
-                    # 👇 Сохраняем все объекты одним запросом после цикла
                     Product.objects.bulk_create(products_to_create)
-
-                    # Если дошли сюда, отмечаем файл как обработанный
                     excel_file.processed = True
                     excel_file.save()
 
                     cprint(f"✔ Файл успешно обработан. Добавлено записей: {len(products_to_create)}", 'green')
 
             except Exception as e:
-                # 👇 Блок except стал намного проще. Транзакция сама все откатит.
                 cprint(f"\n🔥 КРИТИЧЕСКАЯ ОШИБКА: {e}", 'red')
                 cprint("⏹️ Парсинг файла остановлен. Все изменения для этого файла были отменены.", 'red')
