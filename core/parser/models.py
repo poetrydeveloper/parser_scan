@@ -108,9 +108,19 @@ class Product(models.Model):
         return f"{self.name[:50]} ({self.quantity} шт. x {self.price} руб.)"
 
 class Price(models.Model):
-    code = models.CharField("Код товара", max_length=50, unique=True)
+    code = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        verbose_name='Код товара'
+    )
     type = models.CharField("Тип", max_length=100, blank=True)
-    article = models.CharField("Артикул", max_length=100, blank=True)
+    article = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,  # Разрешаем NULL значения
+        verbose_name='Артикул'
+    )
     name = models.TextField("Наименование")
     price1 = models.DecimalField("Цена 1", max_digits=10, decimal_places=2)
     price2 = models.DecimalField("Цена 2", max_digits=10, decimal_places=2, null=True, blank=True)

@@ -1,4 +1,7 @@
 from django.contrib import admin
+from django.core.exceptions import PermissionDenied
+from django.shortcuts import redirect
+from django.template.response import TemplateResponse
 from django.utils.html import format_html
 from django.urls import reverse
 from .models import Invoice, ExcelFile, Product, TTN, Price, FinalSample
@@ -150,6 +153,7 @@ class PriceAdmin(admin.ModelAdmin):
     list_per_page = 50
     ordering = ('code',)
     readonly_fields = ('created_at', 'updated_at')
+    actions = ['delete_all_prices']
 
     fieldsets = (
         ('Основная информация', {
@@ -163,6 +167,47 @@ class PriceAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         })
     )
+
+    def delete_all_prices(self, request, queryset):
+        # Удаляем все записи Price
+        count = Price.objects.all().delete()[0]
+        self.message_user(request, f"Удалено {count} записей.")
+
+    delete_all_prices.short_description = "Удалить ВСЕ цены"
+    delete_all_prices.allowed_permissions = ('delete',)
+
+    def changelist_view(self, request, extra_context=None):
+        extra_context = extra_context or {}
+        extra_context['show_delete_all'] = True  # Флаг для отображения кнопки
+        return super().changelist_view(request, extra_context=extra_context)
+
+    def get_urls(self):
+        urls = super().get_urls()
+        from django.urls import path
+        custom_urls = [
+            path('delete-all/', self.delete_all_view, name='delete_all_prices'),
+        ]
+        return custom_urls + urls
+
+    def delete_all_view(self, request):
+        if not self.has_delete_permission(request):
+            raise PermissionDenied
+
+        if request.method == 'POST':
+            count = Price.objects.all().delete()[0]
+            self.message_user(request, f"Удалено {count} записей.")
+            return redirect('..')
+
+        context = {
+            **self.admin_site.each_context(request),
+            'title': "Подтверждение удаления",
+            'opts': self.model._meta,
+        }
+        return TemplateResponse(
+            request,
+            'admin/parser/price/delete_all_confirmation.html',
+            context
+        )
 
     def short_name(self, obj):
         return obj.name[:60] + '...' if len(obj.name) > 60 else obj.name

@@ -4,131 +4,156 @@ import re
 from django.core.management.base import BaseCommand
 import xlrd
 from openpyxl import load_workbook
-from django.db import transaction
+from django.db import transaction, models
 from termcolor import cprint
+from datetime import datetime
 from parser.models import Price
 
 INPUT_DIR = 'parser/input/input_prices'
 FILENAME_PATTERN = re.compile(r'.*\.(xls|xlsx)$')
 
-
 class Command(BaseCommand):
     help = "Загружает прайс-листы из папки input_prices"
 
-    def clean_stock_value(self, value):
-        """Очищает и форматирует значение остатка для текстового хранения"""
+    @staticmethod
+    def clean_stock_value(value):
+        """Очищает и форматирует значение остатка"""
         if value is None:
             return ""
-
         if isinstance(value, (int, float)):
             return str(int(value)) if value == int(value) else str(value)
+        return str(value).strip()
 
-        if isinstance(value, str):
-            value = value.strip()
-            value = re.sub(r'\s+', ' ', value)
-            return value
+    @staticmethod
+    def safe_float_convert(value):
+        """Безопасное преобразование в float"""
+        if value is None:
+            return 0.0
+        try:
+            return float(str(value).replace(',', '.').strip())
+        except (ValueError, TypeError):
+            return 0.0
 
-        return str(value)
+    @staticmethod
+    def safe_int_convert(value):
+        """Безопасное преобразование в int"""
+        if value is None:
+            return 0
+        try:
+            return int(float(str(value).replace(',', '.').strip()))
+        except (ValueError, TypeError):
+            return 0
+
+    @staticmethod
+    def format_datetime(dt):
+        """Форматирует datetime для вывода"""
+        return dt.strftime("%d.%m.%Y %H:%M:%S") if dt else "неизвестно"
 
     def handle(self, *args, **options):
+        # Проверка существования директории
         if not os.path.exists(INPUT_DIR):
             os.makedirs(INPUT_DIR, exist_ok=True)
             cprint(f"Создана папка {INPUT_DIR}", 'yellow')
             return
 
-        files = [f for f in os.listdir(INPUT_DIR)
-                 if (f.endswith('.xls') or f.endswith('.xlsx'))
-                 and not f.startswith('~$')]
+        # Поиск файлов для обработки
+        files = [
+            f for f in os.listdir(INPUT_DIR)
+            if f.lower().endswith(('.xls', '.xlsx'))
+            and not f.startswith('~$')
+        ]
 
         if not files:
             cprint("Нет файлов прайсов в папке input_prices", 'yellow')
             return
 
+        # Обработка каждого файла
         for filename in sorted(files):
             filepath = os.path.join(INPUT_DIR, filename)
             cprint(f"\nОбработка файла: {filename}", 'cyan', attrs=['bold'])
 
             try:
-                with transaction.atomic():
-                    file_ext = os.path.splitext(filename)[1].lower()
+                # Определение типа файла и чтение данных
+                if filename.lower().endswith('.xlsx'):
+                    try:
+                        wb = load_workbook(filepath, data_only=True)
+                        sheet = wb.active
+                        rows = list(sheet.iter_rows(values_only=True, min_row=2))
+                    except Exception as e:
+                        cprint(f"❌ Ошибка чтения XLSX: {e}", 'red')
+                        continue
+                else:  # .xls
+                    try:
+                        wb = xlrd.open_workbook(filepath)
+                        sheet = wb.sheet_by_index(0)
+                        rows = [sheet.row_values(row_idx) for row_idx in range(1, sheet.nrows)]
+                    except Exception as e:
+                        cprint(f"❌ Ошибка чтения XLS: {e}", 'red')
+                        continue
 
-                    if file_ext == '.xlsx':
-                        try:
-                            wb = load_workbook(filepath, data_only=True)
-                            sheet = wb.active
-                            rows = sheet.iter_rows(min_row=2, values_only=True)
-                        except Exception as e:
-                            cprint(f"❌ Ошибка чтения XLSX файла: {e}", 'red')
-                            continue
+                stats = {'new': 0, 'exists': 0, 'errors': []}
 
-                    elif file_ext == '.xls':
-                        try:
-                            wb = xlrd.open_workbook(filepath)
-                            sheet = wb.sheet_by_index(0)
-                            rows = (sheet.row_values(row_idx) for row_idx in range(1, sheet.nrows))
-                        except Exception as e:
-                            cprint(f"❌ Ошибка чтения XLS файла: {e}", 'red')
-                            continue
+                # Обработка строк
+                for row_idx, row in enumerate(rows, start=2):
+                    if not any(row):
+                        continue
 
-                    new_count = 0
-                    exists_count = 0
-                    errors = []
-
-                    for row_idx, row in enumerate(rows, start=2):
-                        if not any(row):
-                            continue
-
-                        try:
+                    try:
+                        with transaction.atomic():
+                            # Обязательное поле code
                             code = str(row[0]).strip() if row[0] else None
-                            article = str(row[2]).strip() if len(row) > 2 and row[2] else ''
-
                             if not code:
-                                raise ValueError("Пустой код товара")
-
-                            # Проверяем существование записи с таким code и article
-                            exists = Price.objects.filter(code=code, article=article).exists()
-
-                            if exists:
-                                exists_count += 1
-                                cprint(f"⏩ Пропуск (уже существует): {code} - {article}", 'blue')
+                                stats['errors'].append(f"Строка {row_idx}: отсутствует код")
                                 continue
 
+                            # Необязательное поле article
+                            article = str(row[2]).strip() if len(row) > 2 and row[2] else None
+
+                            # Подготовка данных
                             price_data = {
                                 'type': str(row[1]).strip() if len(row) > 1 and row[1] else '',
-                                'article': article,
                                 'name': str(row[3]).strip() if len(row) > 3 and row[3] else '',
-                                'price1': float(str(row[4]).replace(',', '.')) if len(row) > 4 and row[4] else 0,
-                                'price2': float(str(row[5]).replace(',', '.')) if len(row) > 5 and row[5] else 0,
+                                'price1': self.safe_float_convert(row[4]) if len(row) > 4 else 0,
+                                'price2': self.safe_float_convert(row[5]) if len(row) > 5 else 0,
                                 'stock': self.clean_stock_value(row[6]) if len(row) > 6 else "",
-                                'quantity': int(float(row[7])) if len(row) > 7 and row[7] else 0,
-                                'price_clear': float(str(row[8]).replace(',', '.')) if len(row) > 8 and row[8] else 0
+                                'quantity': self.safe_int_convert(row[7]) if len(row) > 7 else 0,
+                                'price_clear': self.safe_float_convert(row[8]) if len(row) > 8 else 0
                             }
 
-                            Price.objects.create(**price_data)
-                            new_count += 1
-                            cprint(f"✅ Добавлен: {code} - {article}", 'green')
+                            # Проверка существующей записи
+                            if Price.objects.filter(code=code).exists():
+                                stats['exists'] += 1
+                                cprint(f"⏩ Пропуск: код {code} уже существует", 'blue')
+                                continue
 
-                        except Exception as e:
-                            error_msg = f"❌ Ошибка в строке {row_idx}: {e}\n    Данные: {row[:9]}"
-                            cprint(error_msg, 'red')
-                            errors.append(error_msg)
-                            continue
+                            # Создание новой записи
+                            Price.objects.create(
+                                code=code,
+                                article=article,
+                                **price_data
+                            )
+                            stats['new'] += 1
+                            cprint(f"✅ Добавлен: {code} (артикул: {article or 'нет'})", 'green')
 
-                    cprint(
-                        f"\nИтоги по файлу {filename}:\n"
-                        f"Новых добавлено: {new_count}\n"
-                        f"Пропущено (уже существует): {exists_count}\n"
-                        f"Ошибок: {len(errors)}",
-                        'cyan'
-                    )
+                    except Exception as e:
+                        stats['errors'].append(f"Строка {row_idx}: {str(e)}")
+                        cprint(f"❌ Ошибка в строке {row_idx}: {e}", 'red')
 
-                    if errors:
-                        cprint("\nПоследние ошибки:", 'yellow')
-                        for error in errors[:3]:
-                            cprint(error, 'red')
+                # Вывод статистики по файлу
+                cprint(
+                    f"\nИтоги по файлу {filename}:\n"
+                    f"Добавлено новых: {stats['new']}\n"
+                    f"Пропущено существующих: {stats['exists']}\n"
+                    f"Ошибок: {len(stats['errors'])}",
+                    'cyan'
+                )
+
+                if stats['errors']:
+                    cprint("\nПоследние ошибки:", 'yellow')
+                    for err in stats['errors'][:5]:
+                        cprint(f"• {err}", 'red')
 
             except Exception as e:
-                cprint(f"\n🔥 КРИТИЧЕСКАЯ ОШИБКА: {e}", 'red')
-                continue
+                cprint(f"\n🔥 Критическая ошибка файла {filename}: {e}", 'red')
 
         cprint("\nОбработка всех файлов завершена!", 'green', attrs=['bold'])
