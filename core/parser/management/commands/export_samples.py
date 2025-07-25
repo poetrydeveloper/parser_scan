@@ -23,10 +23,8 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        # Создаем папку для выгрузки если ее нет
         os.makedirs(options['output'], exist_ok=True)
 
-        # Фильтруем данные по TTN если указан
         if options['ttn']:
             queryset = FinalSample.objects.filter(ttn_number=options['ttn'])
             filename = f"output_{options['ttn']}.xlsx"
@@ -36,12 +34,10 @@ class Command(BaseCommand):
 
         filepath = os.path.join(options['output'], filename)
 
-        # Создаем Excel книгу
         wb = Workbook()
         ws = wb.active
         ws.title = "FinalSample"
 
-        # Заголовки столбцов
         headers = [
             "Номер TTN",
             "Код из прайса",
@@ -54,17 +50,16 @@ class Command(BaseCommand):
             "Наименование товара",
             "Количество",
             "Цена товара",
+            "Стоимость товара",  # ✅ добавлено
             "Статус соответствия"
         ]
 
-        # Добавляем заголовки
         for col_num, header in enumerate(headers, 1):
             col_letter = get_column_letter(col_num)
             ws[f"{col_letter}1"] = header
             ws[f"{col_letter}1"].font = Font(bold=True)
             ws[f"{col_letter}1"].alignment = Alignment(horizontal='center')
 
-        # Заполняем данные
         for row_num, sample in enumerate(queryset, 2):
             ws[f"A{row_num}"] = sample.ttn_number
             ws[f"B{row_num}"] = sample.price_code or ""
@@ -75,11 +70,11 @@ class Command(BaseCommand):
             ws[f"G{row_num}"] = float(sample.price2) if sample.price2 else ""
             ws[f"H{row_num}"] = float(sample.price_clear) if sample.price_clear else ""
             ws[f"I{row_num}"] = sample.product_name
-            ws[f"J{row_num}"] = float(sample.product_quantity)
-            ws[f"K{row_num}"] = float(sample.product_price)
-            ws[f"L{row_num}"] = sample.get_match_status_display()
+            ws[f"J{row_num}"] = float(sample.product_quantity) if sample.product_quantity else ""
+            ws[f"K{row_num}"] = float(sample.product_price) if sample.product_price else ""
+            ws[f"L{row_num}"] = float(sample.full_price) if sample.full_price else ""  # ✅ выводим full_price
+            ws[f"M{row_num}"] = sample.get_match_status_display()
 
-        # Настраиваем ширину столбцов
         column_widths = {
             'A': 15,  # Номер TTN
             'B': 15,  # Код из прайса
@@ -92,12 +87,12 @@ class Command(BaseCommand):
             'I': 60,  # Наименование товара
             'J': 12,  # Количество
             'K': 15,  # Цена товара
-            'L': 20   # Статус
+            'L': 18,  # Стоимость товара
+            'M': 20   # Статус
         }
 
         for col, width in column_widths.items():
             ws.column_dimensions[col].width = width
 
-        # Сохраняем файл
         wb.save(filepath)
         self.stdout.write(self.style.SUCCESS(f"Данные успешно экспортированы в {filepath}"))

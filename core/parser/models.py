@@ -98,6 +98,7 @@ class Product(models.Model):
     quantity = models.FloatField("Количество")
     price = models.FloatField("Цена, руб.коп.")
     total = models.FloatField("Сумма", blank=True, null=True)
+    full_price = models.FloatField("Стоимость (авто)", blank=True, null=True)
     created_at = models.DateTimeField("Создано", auto_now_add=True)
 
     def save(self, *args, **kwargs):
@@ -155,7 +156,7 @@ class FinalSample(models.Model):
     product_name = models.TextField("Наименование из накладной")
     product_quantity = models.FloatField("Количество из накладной")
     product_price = models.FloatField("Цена из накладной")
-
+    product_full_price = models.DecimalField("стоимость", max_digits=10, decimal_places=2, null=True, blank=True)
     match_status = models.CharField("Статус соответствия", max_length=20,
                                     choices=[('full', 'Полное'), ('partial', 'Частичное'), ('none', 'Нет')])
     created_at = models.DateTimeField("Создано", auto_now_add=True)

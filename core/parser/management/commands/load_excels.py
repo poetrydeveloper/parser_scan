@@ -154,7 +154,8 @@ class Command(BaseCommand):
                                     ttn=ttn,
                                     name=name,
                                     quantity=quantity,
-                                    price=price
+                                    price=price,
+                                    full_price=round(quantity * price, 2)
                                 )
                             )
                             cprint(f" ✅ Строка {row_index}: {name[:50]}...", 'green')

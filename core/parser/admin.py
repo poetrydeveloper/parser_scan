@@ -7,6 +7,7 @@ from django.urls import reverse
 from .models import Invoice, ExcelFile, Product, TTN, Price, FinalSample
 
 
+
 class ProductInline(admin.TabularInline):
     model = Product
     extra = 0
@@ -114,10 +115,10 @@ class ExcelFileAdmin(admin.ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('name', 'quantity', 'price', 'total', 'invoice_link', 'ttn_link')
+    list_display = ('name', 'quantity', 'price', "full_price", 'invoice_link', 'ttn_link')
     search_fields = ('name', 'invoice__number', 'ttn__number')
     list_filter = ('invoice', 'ttn')
-    readonly_fields = ('total', 'created_at', 'invoice_link', 'ttn_link')
+    readonly_fields = ('created_at', 'invoice_link', 'ttn_link')
     list_per_page = 50
 
     def invoice_link(self, obj):

@@ -152,6 +152,7 @@ class Command(BaseCommand):
                         product_name=product.name,
                         product_quantity=product.quantity,
                         product_price=product.price,
+                        product_full_price=product.full_price,
                         match_status='none'
                     )
                     error_msg = f"{log_prefix} Не удалось разобрать название"
@@ -181,6 +182,7 @@ class Command(BaseCommand):
                         product_name=product.name,
                         product_quantity=product.quantity,
                         product_price=product.price,
+                        product_full_price=product.full_price,
                         match_status=status
                     )
                     log_msg = f"{log_prefix} Совпадение ({similarity:.0%}): {parsed['code']} | Продукт: '{parsed['article']}' ≈ Прайс: '{price_match.article}'"
@@ -216,6 +218,7 @@ class Command(BaseCommand):
                             product_name=product.name,
                             product_quantity=product.quantity,
                             product_price=product.price,
+                            product_full_price=product.full_price,
                             match_status='textual'
                         )
                         log_msg = f"{log_prefix} 🔍 Доп. совпадение по тексту: найдено {max_matches} совпавших слов."
