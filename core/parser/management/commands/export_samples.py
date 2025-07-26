@@ -72,7 +72,7 @@ class Command(BaseCommand):
             ws[f"I{row_num}"] = sample.product_name
             ws[f"J{row_num}"] = float(sample.product_quantity) if sample.product_quantity else ""
             ws[f"K{row_num}"] = float(sample.product_price) if sample.product_price else ""
-            ws[f"L{row_num}"] = float(sample.full_price) if sample.full_price else ""  # ✅ выводим full_price
+            ws[f"L{row_num}"] = float(sample.product_full_price) if sample.product_full_price else ""  # ✅ выводим full_price
             ws[f"M{row_num}"] = sample.get_match_status_display()
 
         column_widths = {
