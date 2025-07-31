@@ -1,0 +1,43 @@
+{% extends "admin/index.html" %}
+
+{% block content %}
+<div class="custom-commands">
+    <h2>Custom Commands</h2>
+    <div class="buttons">
+        <a href="{% url 'myadmin:load_excels' %}" class="button">Load Excels</a>
+        <a href="{% url 'myadmin:load_prices' %}" class="button">Load Prices</a>
+        <a href="{% url 'myadmin:load_prices2' %}" class="button">Load Prices 2</a>
+        <a href="{% url 'myadmin:process_ttn' %}" class="button">Process TTN</a>
+    </div>
+</div>
+{{ block.super }}
+{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+.custom-commands {
+    margin: 20px 0;
+    padding: 20px;
+    background: #f8f8f8;
+    border: 1px solid #eee;
+    border-radius: 4px;
+}
+.custom-commands .buttons {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.custom-commands .button {
+    padding: 10px 15px;
+    background: #417690;
+    color: white;
+    border-radius: 4px;
+    text-decoration: none;
+    transition: background 0.3s;
+}
+.custom-commands .button:hover {
+    background: #205067;
+}
+</style>
+{% endblock %}
